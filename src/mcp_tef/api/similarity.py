@@ -283,7 +283,7 @@ async def analyze_similarity(
 
     logger.info(f"Analysis complete: {flagged_count} pairs flagged above threshold {threshold}")
 
-    return SimilarityAnalysisResponse.model_validate(response_data)  # type: ignore[arg-type]
+    return SimilarityAnalysisResponse.model_validate(response_data)
 
 
 @router.post(

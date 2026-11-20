@@ -7,9 +7,23 @@ permissions:
   contents: read
 
 jobs:
-  code-quality:
-    name: CLI Code Quality Checks
+  check:
+    name: CLI ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Format check
+            task: format
+          - name: Lint
+            task: lint
+          - name: Type check
+            task: typecheck
+          - name: Tests
+            task: test:cli:unit
+          - name: Security scanning
+            task: security:cli
 
     steps:
       - name: Checkout repository
@@ -31,23 +45,10 @@ jobs:
         with:
           version: 3.x
 
-      - name: Install root dependencies
-        run: task install
+      - name: Install dependencies
+        run: |
+          task install
+          task install:cli
 
-      - name: Install CLI dependencies
-        run: task install:cli
-
-      - name: Format check
-        run: task format
-
-      - name: Lint
-        run: task lint
-
-      - name: Type check
-        run: task typecheck
-
-      - name: Run CLI tests
-        run: task test:cli:unit
-
-      - name: Run CLI security scanning
-        run: task security:cli
+      - name: Run CLI ${{ matrix.name }}
+        run: task ${{ matrix.task }}
