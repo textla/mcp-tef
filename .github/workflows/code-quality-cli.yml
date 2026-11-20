@@ -7,9 +7,23 @@ permissions:
   contents: read
 
 jobs:
-  code-quality:
-    name: CLI Code Quality Checks
+  check:
+    name: CLI ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Format check
+            task: format
+          - name: Lint
+            task: lint
+          - name: Type check
+            task: typecheck
+          - name: Tests
+            task: test:cli:unit
+          - name: Security scanning
+            task: security:cli
 
     steps:
       - name: Checkout repository
@@ -30,24 +44,12 @@ jobs:
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install root dependencies
-        run: task install
+      - name: Install dependencies
+        run: |
+          task install
+          task install:cli
 
-      - name: Install CLI dependencies
-        run: task install:cli
-
-      - name: Format check
-        run: task format
-
-      - name: Lint
-        run: task lint
-
-      - name: Type check
-        run: task typecheck
-
-      - name: Run CLI tests
-        run: task test:cli:unit
-
-      - name: Run CLI security scanning
-        run: task security:cli
+      - name: Run CLI ${{ matrix.name }}
+        run: task ${{ matrix.task }}
