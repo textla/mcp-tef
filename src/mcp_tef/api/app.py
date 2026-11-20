@@ -86,7 +86,7 @@ app.add_middleware(
 
 # Register exception handlers
 app.add_exception_handler(MCPEvalException, mcp_eval_exception_handler)  # type: ignore[arg-type]  # ty limitation with async handler types
-app.add_exception_handler(Exception, generic_exception_handler)  # type: ignore[arg-type]  # ty limitation with async handler types
+app.add_exception_handler(Exception, generic_exception_handler)
 
 # Register routers
 app.include_router(tool_quality.router, prefix="/mcp-servers", tags=["mcp-servers"])
