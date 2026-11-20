@@ -8,9 +8,21 @@ permissions:
   contents: read
 
 jobs:
-  code-quality:
-    name: Code Quality Checks
+  check:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Lint
+            task: lint
+          - name: Type Checking
+            task: typecheck
+          - name: Tests
+            task: test
+          - name: Security Scanning
+            task: security
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -25,14 +37,5 @@ jobs:
         with:
           version: 3.44.1
 
-      - name: Run Linting
-        run: task lint
-      
-      - name: Run Type Checking
-        run: task typecheck
-      
-      - name: Run Tests
-        run: task test
-
-      - name: Run Security Scanning
-        run: task security
+      - name: Run ${{ matrix.name }}
+        run: task ${{ matrix.task }}

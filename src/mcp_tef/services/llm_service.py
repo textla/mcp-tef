@@ -19,6 +19,7 @@ from pydantic_ai import (
     UserPromptPart,
 )
 from pydantic_ai.builtin_tools import AbstractBuiltinTool
+from pydantic_ai.capabilities import NativeTool
 from pydantic_ai.mcp import MCPServerSSE, MCPServerStreamableHTTP
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
@@ -360,7 +361,7 @@ class LLMService:
                 output_type=output_type,
                 system_prompt=system_prompt,
                 tools=tools,
-                builtin_tools=builtin_tools,
+                capabilities=[NativeTool(t) for t in builtin_tools],
                 toolsets=toolsets,
             )
         except UserError as e:
