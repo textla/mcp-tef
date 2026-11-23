@@ -19,6 +19,7 @@ from mcp_tef_cli.constants import (
     EXIT_TEF_SERVER_UNREACHABLE,
 )
 from mcp_tef_cli.docker_client import discover_tef_url
+from mcp_tef_cli.junit import JUnitCase, write_junit
 from mcp_tef_cli.output import print_error, print_info, print_success
 
 console = Console()
@@ -47,6 +48,36 @@ def parse_server_urls(value: str) -> list[str]:
         raise click.BadParameter("At least one server URL is required")
 
     return urls
+
+
+def tool_quality_junit_cases(response: ToolQualityResponse) -> list[JUnitCase]:
+    """One JUnit testcase per evaluated tool, and an error testcase per error.
+
+    A tool's scores are testcase properties; the explanations and any
+    suggested description are its output. Scores don't fail a testcase.
+    """
+    cases = []
+    for result in response.results:
+        evaluation = result.evaluation_result
+        dimensions = {
+            "clarity": evaluation.clarity,
+            "completeness": evaluation.completeness,
+            "conciseness": evaluation.conciseness,
+        }
+        lines = [f"{name} {d.score}/10: {d.explanation}" for name, d in dimensions.items()]
+        if evaluation.suggested_description:
+            lines.append(f"suggested description: {evaluation.suggested_description}")
+        cases.append(
+            JUnitCase(
+                name=result.tool_name,
+                classname="tool-quality",
+                properties={name: str(d.score) for name, d in dimensions.items()},
+                details="\n".join(lines),
+            )
+        )
+    for i, error in enumerate(response.errors or [], start=1):
+        cases.append(JUnitCase(name=f"error {i}", classname="tool-quality", error=error))
+    return cases
 
 
 def resolve_api_key(cli_key: str | None) -> str | None:
@@ -231,6 +262,12 @@ async def evaluate_tool_quality_async(
     is_flag=True,
     help="Skip SSL certificate verification",
 )
+@click.option(
+    "--output",
+    type=click.Path(dir_okay=False),
+    default=None,
+    help="Also write a JUnit XML report: one testcase per tool, and an error per failed server",
+)
 def tool_quality(
     server_urls: str,
     model_provider: str,
@@ -242,6 +279,7 @@ def tool_quality(
     verbose: bool,
     timeout: int,
     insecure: bool,
+    output: str | None,
 ) -> None:
     """Evaluate tool description quality for MCP servers.
 
@@ -329,6 +367,9 @@ def tool_quality(
         # Determine exit code based on results
         has_results = bool(response.results)
         has_errors = bool(response.errors)
+
+        if output:
+            write_junit(output, "tool-quality", tool_quality_junit_cases(response))
 
         if output_format == "json":
             format_results_json(response)

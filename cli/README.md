@@ -140,6 +140,30 @@ mtef similarity recommend \
   --server-urls http://localhost:3000/sse
 ```
 
+### Write JUnit Reports
+
+```bash
+# A testcase per test case, from its latest run: TP/TN pass, FP/FN fail,
+# a failed run errors, and a test case with no run is skipped
+mtef test-report \
+  --test-case-id <test-case-id> --test-case-id <test-case-id> \
+  --test-file test-cases.json \
+  --output test-report.xml
+
+# Similarity: a testcase per tool, failed when it is in a pair above the threshold
+mtef similarity analyze --server-urls http://localhost:3000/sse \
+  --include-recommendations --output similarity-report.xml
+
+# Tool quality: a testcase per tool with its scores as properties
+mtef tool-quality --server-urls http://localhost:3000/sse \
+  --model-provider anthropic --model-name claude-sonnet-4-5-20250929 \
+  --output tool-quality-report.xml
+```
+
+`test-report` reports every test case on the server when given no
+`--test-case-id`, and exits 0 once the report is written; `--output` doesn't
+change the other commands' output or exit codes.
+
 ### Stop the Server
 
 ```bash
