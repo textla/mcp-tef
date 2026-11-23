@@ -179,8 +179,11 @@ def test_failure_names_every_tool_called():
 
     from mcp_tef_cli.commands.test_report import junit_case
 
-    tc = TestCaseResponse.model_validate(mock_case("c1", "two calls", "get_weather"))
     weather = {"mcp_server_url": MCP, "tool_name": "get_weather"}
+    forecast = {"mcp_server_url": MCP, "tool_name": "get_forecast"}
+    tc = TestCaseResponse.model_validate(
+        mock_case("c1", "two calls", "get_weather") | {"expected_tool_calls": [weather, forecast]}
+    )
     run = TestRunResponse.model_validate(
         mock_run(
             "c1",
@@ -191,11 +194,11 @@ def test_failure_names_every_tool_called():
                     "expected_tool_call": weather,
                     "actual_tool_call": {"name": "get_weather", "mcp_server_url": MCP},
                 },
-                {"match_type": "FN", "expected_tool_call": weather},
+                {"match_type": "FN", "expected_tool_call": forecast},
             ],
         )
     )
 
     case = junit_case(tc, run, "mcp-tef")
 
-    assert case.failure == "FN: expected get_weather, called get_weather"
+    assert case.failure == "FN: expected get_weather, get_forecast, called get_weather"
