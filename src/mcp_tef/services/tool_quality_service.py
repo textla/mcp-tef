@@ -53,6 +53,7 @@ class ToolQualityService:
         llm_service: LLMService,
     ):
         self._mcp_loader_service = mcp_loader_service
+        self._provider = llm_service.provider
         self._devin: DevinSessionService | None = None
         self._agent: Agent | None = None
         if llm_service.provider.lower() == devin_service.PROVIDER:
@@ -80,6 +81,13 @@ class ToolQualityService:
             self._logger.debug(f"Evaluated tool {result.tool_name}:")
             self._logger.debug(json.dumps(result.evaluation_result.model_dump(), indent=2))
             results.append(result)
+        failed = [t.name for t in tool_definitions if t.name not in {r.tool_name for r in results}]
+        if failed:
+            raise LLMProviderError(
+                self._provider,
+                f"Failed to grade {len(failed)} of {len(tool_definitions)} tools "
+                f"({', '.join(failed)}); see the server log",
+            )
         return results
 
     async def evaluate_tools(
