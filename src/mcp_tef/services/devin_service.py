@@ -158,7 +158,8 @@ class DevinSessionService:
     def _json(response: httpx.Response) -> dict[str, Any]:
         if response.status_code in (401, 403):
             raise LLMProviderAPIKeyError(
-                PROVIDER, f"Devin API refused the PAT ({response.status_code})"
+                PROVIDER,
+                f"Devin API refused the PAT or org ({response.status_code}): {response.text[:500]}",
             )
         if response.is_error:
             raise LLMProviderError(

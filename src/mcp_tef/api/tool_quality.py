@@ -15,7 +15,7 @@ from mcp_tef_models.schemas import (
     ToolQualityResult,
 )
 
-from mcp_tef.api.errors import BadRequestError
+from mcp_tef.api.errors import BadRequestError, MCPEvalException
 from mcp_tef.config.settings import Settings, get_settings
 from mcp_tef.services.llm_service import LLMService
 from mcp_tef.services.mcp_loader import MCPLoaderService
@@ -100,7 +100,8 @@ async def get_mcp_server_tool_quality_by_url(
     for url, result in zip(server_urls_list, results, strict=False):
         if isinstance(result, Exception):
             logger.error(f"Exception while evaluating tool quality for {url}", exc_info=result)
-            errors.append(f"Error encountered while evaluating tools for {url}.")
+            detail = f": {result.message}" if isinstance(result, MCPEvalException) else "."
+            errors.append(f"Error encountered while evaluating tools for {url}{detail}")
         else:
             final_results.extend(result.results)
     return ToolQualityResponse(results=final_results, errors=errors if errors else None)
