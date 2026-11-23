@@ -12,6 +12,7 @@ from mcp_tef_cli.commands.deploy import deploy
 from mcp_tef_cli.commands.similarity import similarity
 from mcp_tef_cli.commands.stop import stop
 from mcp_tef_cli.commands.test_case import test_case
+from mcp_tef_cli.commands.test_report import test_report
 from mcp_tef_cli.commands.test_run import test_run
 from mcp_tef_cli.commands.tool_quality import tool_quality
 
@@ -34,6 +35,7 @@ cli.add_command(similarity)
 cli.add_command(stop)
 cli.add_command(tool_quality)
 cli.add_command(test_case)
+cli.add_command(test_report)
 cli.add_command(test_run)
 
 

@@ -19,6 +19,7 @@ from mcp_tef_cli.constants import (
     EXIT_INVALID_ARGUMENTS,
     EXIT_SUCCESS,
 )
+from mcp_tef_cli.junit import JUnitCase, write_junit
 from mcp_tef_cli.output import print_error, print_success
 from mcp_tef_cli.utils import handle_api_errors, resolve_tef_url
 
@@ -222,6 +223,51 @@ def format_analyze_table(
     # Show recommendations if present
     if response.recommendations:
         format_recommendations(response.recommendations)
+
+
+def tool_label(tool_id: str, server_urls: list[str]) -> str:
+    """Shorten a "<server url>:<tool name>" tool ID to the tool name for one server."""
+    if len(server_urls) == 1 and tool_id.startswith(server_urls[0] + ":"):
+        return tool_id[len(server_urls[0]) + 1 :]
+    return tool_id
+
+
+def similarity_junit_cases(
+    response: SimilarityAnalysisResponse, server_urls: list[str]
+) -> list[JUnitCase]:
+    """One JUnit testcase per analyzed tool, failed when it is in a flagged pair.
+
+    A failure names the tools it is too similar to, and its text holds the
+    recommendations for those pairs.
+    """
+    cases = []
+    for tool_id in response.tool_ids:
+        case = JUnitCase(name=tool_label(tool_id, server_urls), classname="similarity")
+        pairs = [
+            (p.tool_b_id if p.tool_a_id == tool_id else p.tool_a_id, p.similarity_score)
+            for p in response.flagged_pairs
+            if tool_id in (p.tool_a_id, p.tool_b_id)
+        ]
+        if pairs:
+            pairs.sort(key=lambda p: p[1], reverse=True)
+            case.failure = f"similarity above {response.threshold} with " + ", ".join(
+                f"{tool_label(other, server_urls)} ({score:.2f})" for other, score in pairs
+            )
+            lines = []
+            for rec in response.recommendations or []:
+                if tool_id not in rec.tool_pair:
+                    continue
+                pair = " / ".join(tool_label(t, server_urls) for t in rec.tool_pair)
+                lines.append(f"{pair} ({rec.similarity_score:.2f})")
+                lines.extend(f"  issue [{i.issue_type}]: {i.description}" for i in rec.issues)
+                for item in rec.recommendations:
+                    lines.append(f"  [{item.priority}] {item.recommendation}")
+                    lines.append(f"    rationale: {item.rationale}")
+                    if item.revised_description:
+                        lines.append(f"    revised description: {item.revised_description}")
+            case.details = "\n".join(lines) or None
+        cases.append(case)
+    return cases
 
 
 def format_recommendations(recommendations: list[DifferentiationRecommendation]) -> None:
@@ -470,6 +516,12 @@ def similarity():
     is_flag=True,
     help="Skip SSL certificate verification",
 )
+@click.option(
+    "--output",
+    type=click.Path(dir_okay=False),
+    default=None,
+    help="Also write a JUnit XML report: a testcase per tool, failed when in a flagged pair",
+)
 def analyze(
     server_urls: str,
     threshold: float,
@@ -483,6 +535,7 @@ def analyze(
     verbose: bool,
     timeout: int | None,
     insecure: bool,
+    output: str | None,
 ) -> None:
     """Run full similarity analysis with optional recommendations.
 
@@ -553,6 +606,9 @@ def analyze(
 
     with handle_api_errors(url):
         response = asyncio.run(_run())
+
+        if output:
+            write_junit(output, "similarity", similarity_junit_cases(response, parsed_urls))
 
         # Output results
         if output_format == "json":

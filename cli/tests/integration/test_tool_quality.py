@@ -426,3 +426,47 @@ class TestToolQualityCommand:
         assert "8/10" in result.output
         assert "6/10" in result.output
         assert "Evaluated 2 tool(s)" in result.output
+
+
+class TestToolQualityJUnitOutput:
+    """Test tool-quality --output."""
+
+    @respx.mock
+    def test_output_has_scores_and_errors(self, tmp_path):
+        """Each tool is a passing testcase with its scores; each error is an error."""
+        from xml.etree import ElementTree as ET  # nosec B405
+
+        response = mock_quality_response()
+        response["errors"] = ["server http://localhost:3001/mcp unreachable"]
+        respx.get("http://localhost:8000/mcp-servers/tools/quality").mock(
+            return_value=httpx.Response(200, json=response)
+        )
+        output = tmp_path / "quality.xml"
+
+        result = CliRunner().invoke(
+            tool_quality,
+            [
+                "--url",
+                "http://localhost:8000",
+                "--server-urls",
+                "http://localhost:3000/sse,http://localhost:3001/mcp",
+                "--model-provider",
+                "anthropic",
+                "--model-name",
+                "claude-sonnet-4-5",
+                "--output",
+                str(output),
+            ],
+        )
+
+        assert result.exit_code == 1, result.output
+        root = ET.parse(output).getroot()  # nosec B314
+        cases = {tc.attrib["name"]: tc for tc in root.iter("testcase")}
+        props = {p.attrib["name"]: p.attrib["value"] for p in cases["get_weather"].iter("property")}
+        assert props == {"clarity": "8", "completeness": "7", "conciseness": "9"}
+        assert "suggested description: Retrieve" in (
+            cases["get_weather"].findtext("system-out") or ""
+        )
+        error = cases["error 1"].find("error")
+        assert error is not None
+        assert "unreachable" in error.attrib["message"]

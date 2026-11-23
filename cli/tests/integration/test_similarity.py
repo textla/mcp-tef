@@ -543,3 +543,68 @@ class TestCommonOptions:
 
         assert result.exit_code != EXIT_SUCCESS
         assert "server-urls" in result.output.lower() or "missing" in result.output.lower()
+
+
+class TestAnalyzeJUnitOutput:
+    """Test similarity analyze --output."""
+
+    @respx.mock
+    def test_output_fails_tools_in_flagged_pairs(self, tmp_path):
+        """Each tool is a testcase; tools in a flagged pair fail with the recommendations."""
+        from xml.etree import ElementTree as ET  # nosec B405
+
+        server = "http://localhost:3000/sse"
+        response = mock_analysis_response()
+        response["tool_ids"] = [f"{server}:{t}" for t in ("a", "b", "c")]
+        response["flagged_pairs"] = [
+            {"tool_a_id": f"{server}:a", "tool_b_id": f"{server}:b", "similarity_score": 0.91}
+        ]
+        response["recommendations"] = [
+            {
+                "tool_pair": [f"{server}:a", f"{server}:b"],
+                "similarity_score": 0.91,
+                "issues": [
+                    {
+                        "issue_type": "naming_clarity",
+                        "description": "names overlap",
+                        "tool_a_id": f"{server}:a",
+                        "tool_b_id": f"{server}:b",
+                    }
+                ],
+                "recommendations": [
+                    {
+                        "issue": "naming_clarity",
+                        "recommendation": "rename b",
+                        "rationale": "clearer",
+                        "priority": "high",
+                    }
+                ],
+            }
+        ]
+        respx.post("http://localhost:8000/similarity/analyze").mock(
+            return_value=httpx.Response(200, json=response)
+        )
+        output = tmp_path / "similarity.xml"
+
+        result = CliRunner().invoke(
+            similarity,
+            [
+                "analyze",
+                "--url",
+                "http://localhost:8000",
+                "--server-urls",
+                server,
+                "--output",
+                str(output),
+            ],
+        )
+
+        assert result.exit_code == EXIT_SUCCESS, result.output
+        root = ET.parse(output).getroot()  # nosec B314
+        cases = {tc.attrib["name"]: tc for tc in root.iter("testcase")}
+        assert set(cases) == {"a", "b", "c"}
+        failure = cases["a"].find("failure")
+        assert failure is not None
+        assert failure.attrib["message"] == "similarity above 0.85 with b (0.91)"
+        assert "[high] rename b" in (failure.text or "")
+        assert cases["c"].find("failure") is None
