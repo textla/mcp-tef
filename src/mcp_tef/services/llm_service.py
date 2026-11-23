@@ -228,6 +228,13 @@ class LLMService:
                             "UNIDENTIFIED PART", type(part).__name__, timestamp
                         )
 
+        # A call the model retried (e.g. the tool errored) and then answered in
+        # plain text has no return and no later call to complete it.
+        if current_tool_call is not None and current_tool_name is not None:
+            tool_calls.append(
+                LLMToolCall(name=current_tool_name, parameters=current_tool_call, response=None)
+            )
+
         # Remove any 'final_result' tool calls from the returned list. This is the tool call
         # that Pydantic AI uses to return the final structured output
         final_tool_calls = [
