@@ -221,6 +221,11 @@ class Settings(BaseSettings):
         description="Anthropic API key (optional)",
     )
 
+    bedrock_region: str = Field(
+        default="",
+        description="AWS region for the bedrock provider; empty uses AWS_REGION or the profile's",
+    )
+
     # Devin provider: one Devin session per request, through the Devin v3 API
     devin_api_key: str = Field(
         default="",

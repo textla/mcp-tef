@@ -23,9 +23,11 @@ from pydantic_ai.capabilities import NativeTool
 from pydantic_ai.mcp import MCPServerSSE, MCPServerStreamableHTTP
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.bedrock import BedrockConverseModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.output import OutputSpec
 from pydantic_ai.providers.anthropic import AnthropicProvider
+from pydantic_ai.providers.bedrock import BedrockProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic_ai.tools import Tool
@@ -354,6 +356,17 @@ class LLMService:
                     )
                 provider = OpenRouterProvider(api_key=api_key)
                 model = OpenAIChatModel(self.model, provider=provider)
+            elif self.provider.lower() == "bedrock":
+                # AWS credentials come from boto3's default chain (environment,
+                # profile, SSO or a role); an API key, if given, is a Bedrock
+                # API key used instead of them.
+                region = (self.settings.bedrock_region if self.settings else "") or None
+                provider = (
+                    BedrockProvider(api_key=self.api_key, region_name=region)
+                    if self.api_key
+                    else BedrockProvider(region_name=region)
+                )
+                model = BedrockConverseModel(self.model, provider=provider)
             elif self.provider.lower() == "ollama":
                 # Ollama uses OpenAIProvider with custom base_url
                 # Ollama doesn't require an API key, but OpenAIProvider needs one (use empty string)
