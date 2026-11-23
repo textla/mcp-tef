@@ -360,7 +360,10 @@ class LLMService:
                 # AWS credentials come from boto3's default chain (environment,
                 # profile, SSO or a role); an API key, if given, is a Bedrock
                 # API key used instead of them.
-                region = (self.settings.bedrock_region if self.settings else "") or None
+                # boto3 reads AWS_DEFAULT_REGION and the profile, not AWS_REGION.
+                region = (self.settings.bedrock_region if self.settings else "") or os.getenv(
+                    "AWS_REGION"
+                )
                 provider = (
                     BedrockProvider(api_key=self.api_key, region_name=region)
                     if self.api_key
