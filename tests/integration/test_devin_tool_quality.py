@@ -36,18 +36,34 @@ def evaluation(tool_name: str) -> dict:
 class FakeDevin:
     """Answers the Devin v3 session endpoints and records the requests."""
 
-    def __init__(self, outputs: list[dict | None], final_status: str = "running"):
+    def __init__(
+        self,
+        outputs: list[dict | None],
+        final_status: str = "running",
+        final_detail: str | None = None,
+    ):
         self.outputs = outputs
         self.final_status = final_status
+        self.final_detail = final_detail
         self.requests: list[httpx.Request] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         if request.method == "POST":
             return httpx.Response(200, json={"session_id": "devin-1", "url": "https://x/1"})
+        if request.method == "DELETE":
+            return httpx.Response(200, json={})
         output = self.outputs.pop(0) if self.outputs else None
-        status = self.final_status if not self.outputs else "running"
-        return httpx.Response(200, json={"status": status, "structured_output": output})
+        if self.outputs:
+            status, detail = "running", "working"
+        else:
+            status, detail = self.final_status, self.final_detail
+        return httpx.Response(
+            200, json={"status": status, "status_detail": detail, "structured_output": output}
+        )
+
+    def calls(self) -> list[tuple[str, str]]:
+        return [(r.method, r.url.path) for r in self.requests]
 
 
 @pytest.fixture
@@ -105,13 +121,15 @@ async def test_grades_every_tool_in_one_session(quality):
     body = json.loads(create.content)
     assert body["structured_output_schema"] == structured_output_schema(DevinToolEvaluations)
     assert body["repos"] == []
+    assert body["secret_ids"] == []
+    assert body["knowledge_ids"] == []
+    assert body["max_acu_limit"] == 5
     assert body["memory_enabled"] is False
     assert "devin_mode" not in body
     assert "Tool Name: get_weather" in body["prompt"]
     assert "Tool Name: get_time" in body["prompt"]
-    assert [r.url.path for r in fake.requests[1:]] == [
-        "/v3/organizations/org-test/sessions/devin-1"
-    ] * 2
+    session = "/v3/organizations/org-test/sessions/devin-1"
+    assert fake.calls()[1:] == [("GET", session), ("GET", session), ("DELETE", session)]
 
 
 @pytest.mark.asyncio
@@ -130,6 +148,27 @@ async def test_session_ending_without_output_is_an_error(quality):
 
     assert data["results"] == []
     assert len(data["errors"]) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("detail", ["finished", "waiting_for_user"])
+async def test_session_done_without_output_is_an_error(quality, detail):
+    fake = FakeDevin([None], final_status="running", final_detail=detail)
+
+    data = await quality(fake)
+
+    assert data["results"] == []
+    assert len(data["errors"]) == 1
+    assert [method for method, _ in fake.calls()] == ["POST", "GET", "DELETE"]
+
+
+@pytest.mark.asyncio
+async def test_exited_session_is_not_terminated(quality):
+    fake = FakeDevin([None], final_status="exit")
+
+    await quality(fake)
+
+    assert [method for method, _ in fake.calls()] == ["POST", "GET"]
 
 
 @pytest.mark.asyncio

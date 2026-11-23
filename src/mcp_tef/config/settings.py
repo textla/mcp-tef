@@ -255,6 +255,12 @@ class Settings(BaseSettings):
         description="Seconds to wait for a Devin session's structured output",
     )
 
+    devin_max_acu_limit: int = Field(
+        default=5,
+        gt=0,
+        description="Most ACUs one Devin grading session may use",
+    )
+
     # Embedding Configuration
     embedding_model_type: EmbeddingModelType = Field(
         default=EmbeddingModelType.FASTEMBED,
