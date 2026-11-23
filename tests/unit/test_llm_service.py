@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from mcp_tef_models.schemas import MCPServerConfig
-from pydantic_ai import ToolCallPart, ToolReturnPart
+from pydantic_ai import RetryPromptPart, ToolCallPart, ToolReturnPart
 
 from mcp_tef.api.errors import LLMProviderError
 from mcp_tef.models.llm_models import ConfidenceLevel, LLMResponse, LLMToolCall
@@ -438,23 +438,32 @@ class TestSelectToolFinalAnswer:
     """Test the agent's final answer, structured or plain text."""
 
     @staticmethod
-    async def _select(final_part) -> LLMResponse:
+    async def _select(final_part, tool_call=None, tools=()) -> LLMResponse:
+        """Run select_tool on a model that makes tool_call, if any, then gives final_part."""
         from pydantic_ai import Agent
-        from pydantic_ai.messages import ModelResponse
+        from pydantic_ai.messages import ModelResponse, ToolReturnPart
         from pydantic_ai.models.function import FunctionModel
 
         def respond(messages, info):
+            answered = any(
+                isinstance(p, ToolReturnPart | RetryPromptPart) for m in messages for p in m.parts
+            )
+            if tool_call and not answered:
+                return ModelResponse(parts=[tool_call])
             return ModelResponse(parts=[final_part(info)])
 
         def make_agent(self, system_prompt, output_type=None, **_):
             return Agent(
-                FunctionModel(respond), output_type=output_type, system_prompt=system_prompt
+                FunctionModel(respond),
+                output_type=output_type,
+                system_prompt=system_prompt,
+                tools=list(tools),
             )
 
         service = LLMService(provider="ollama", model="m", api_key=None, base_url="http://x/v1")
         with patch.object(LLMService, "make_agent", make_agent):
             await service.connect_to_mcp_servers([], "")
-        return await service.select_tool("What is SMS?")
+        return await service.select_tool("How much credit do I have?")
 
     @pytest.mark.asyncio
     async def test_plain_text_answer_has_no_confidence(self):
@@ -476,3 +485,35 @@ class TestSelectToolFinalAnswer:
         )
 
         assert response.confidence_level == ConfidenceLevel.HIGH
+
+    @pytest.mark.asyncio
+    async def test_plain_text_answer_keeps_tool_call(self):
+        """A tool call followed by a plain-text answer is still scored."""
+        from pydantic_ai.messages import TextPart
+
+        def get_balance() -> str:
+            return "$10"
+
+        response = await self._select(
+            lambda _: TextPart("You have $10."), ToolCallPart("get_balance", {}), [get_balance]
+        )
+
+        assert [c.name for c in response.tool_calls] == ["get_balance"]
+        assert response.confidence_level is None
+
+    @pytest.mark.asyncio
+    async def test_plain_text_answer_keeps_retried_tool_call(self):
+        """A tool call that errored, followed by a plain-text answer, is still scored."""
+        from pydantic_ai import ModelRetry
+        from pydantic_ai.messages import TextPart
+
+        def get_balance() -> str:
+            raise ModelRetry("balance unavailable")
+
+        response = await self._select(
+            lambda _: TextPart("I couldn't get your balance."),
+            ToolCallPart("get_balance", {}),
+            [get_balance],
+        )
+
+        assert [(c.name, c.response) for c in response.tool_calls] == [("get_balance", None)]
