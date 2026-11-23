@@ -77,7 +77,9 @@ mtef tool-quality \
 # Grade with one Devin session instead of a model API. The server reads the
 # Devin PAT from DEVIN_API_KEY (or --api-key) and the org from DEVIN_ORG_ID.
 # --model-name is the session's devin_mode, or "default". A session takes
-# minutes, so raise --timeout.
+# minutes, so raise --timeout above the server's DEVIN_SESSION_TIMEOUT (1200s).
+# The server also reads DEVIN_API_URL, DEVIN_REQUEST_TIMEOUT (30s) and
+# DEVIN_POLL_INTERVAL (10s).
 mtef tool-quality \
   --server-urls http://localhost:3000/sse \
   --model-provider devin \
