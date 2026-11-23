@@ -185,12 +185,14 @@ async def test_refused_pat_is_an_error(quality):
 
     def refuse(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        return httpx.Response(401, json={"detail": "nope"})
+        return httpx.Response(403, json={"detail": "org not accessible"})
 
     data = await quality(refuse)
 
     assert data["results"] == []
     assert len(data["errors"]) == 1
+    assert "refused the PAT or org (403)" in data["errors"][0]
+    assert "org not accessible" in data["errors"][0]
     assert [r.method for r in requests] == ["POST"]
 
 
