@@ -221,6 +221,40 @@ class Settings(BaseSettings):
         description="Anthropic API key (optional)",
     )
 
+    # Devin provider: one Devin session per request, through the Devin v3 API
+    devin_api_key: str = Field(
+        default="",
+        description="Devin personal access token (cog_...) for the devin provider",
+    )
+
+    devin_org_id: str = Field(
+        default="",
+        description="Devin organization ID (org-...) the devin provider creates sessions in",
+    )
+
+    devin_api_url: str = Field(
+        default="https://api.devin.ai",
+        description="Devin API base URL",
+    )
+
+    devin_request_timeout: float = Field(
+        default=30.0,
+        gt=0,
+        description="Timeout in seconds for each Devin API request",
+    )
+
+    devin_poll_interval: float = Field(
+        default=10.0,
+        gt=0,
+        description="Seconds between polls of a Devin session",
+    )
+
+    devin_session_timeout: float = Field(
+        default=1200.0,
+        gt=0,
+        description="Seconds to wait for a Devin session's structured output",
+    )
+
     # Embedding Configuration
     embedding_model_type: EmbeddingModelType = Field(
         default=EmbeddingModelType.FASTEMBED,
