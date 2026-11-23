@@ -386,7 +386,7 @@ def tool_quality(
                 console.print()
                 console.print("[bold yellow]Errors:[/bold yellow]")
                 for error in response.errors:
-                    console.print(f"  - {error}")
+                    console.print(f"  - {error}", markup=False)
 
         # Exit codes per spec
         if has_errors and not has_results:
