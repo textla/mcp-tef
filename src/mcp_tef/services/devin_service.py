@@ -6,7 +6,6 @@ session returns output that validates against that schema.
 """
 
 import asyncio
-import os
 import time
 from typing import Any
 
@@ -56,19 +55,19 @@ class DevinSessionService:
     ) -> "DevinSessionService":
         """Resolve the PAT and organization the way the other providers resolve keys.
 
-        The PAT comes from the request (X-Model-API-Key), then DEVIN_API_KEY,
-        then settings; the organization from DEVIN_ORG_ID, then settings.
+        The PAT comes from the request (X-Model-API-Key), then settings
+        (DEVIN_API_KEY); the organization from settings (DEVIN_ORG_ID).
         model is the session's devin_mode, or "default" for the org's default.
         """
         settings = settings or Settings()
-        api_key = api_key or os.getenv("DEVIN_API_KEY") or settings.devin_api_key
+        api_key = api_key or settings.devin_api_key
         if not api_key:
             raise LLMProviderAPIKeyError(
                 PROVIDER,
                 "Devin PAT required. Provide via X-Model-API-Key header, set "
                 "DEVIN_API_KEY environment variable, or configure in settings.",
             )
-        org_id = os.getenv("DEVIN_ORG_ID") or settings.devin_org_id
+        org_id = settings.devin_org_id
         if not org_id:
             raise LLMProviderError(PROVIDER, "DEVIN_ORG_ID is not set")
         devin_mode = None if model == "default" else model
@@ -113,13 +112,14 @@ class DevinSessionService:
                         PROVIDER,
                         f"session {session_id} ended ({status}) without valid structured output",
                     )
-                if time.monotonic() >= deadline:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
                     raise LLMProviderError(
                         PROVIDER,
                         f"session {session_id} returned no structured output within "
                         f"{self._settings.devin_session_timeout:g}s",
                     )
-                await asyncio.sleep(self._settings.devin_poll_interval)
+                await asyncio.sleep(min(self._settings.devin_poll_interval, remaining))
 
     @staticmethod
     def _json(response: httpx.Response) -> dict[str, Any]:
