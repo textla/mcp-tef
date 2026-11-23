@@ -107,8 +107,11 @@ def junit_case(tc: TestCaseResponse, run: TestRunResponse | None, classname: str
     elif run.status != "completed":
         case.skipped = f"test run is {run.status}"
     elif run.classification in ("FP", "FN"):
-        mismatches = [m for m in run.tool_call_matches if m.match_type in ("FP", "FN")]
-        called = [m.actual_tool_call.name for m in mismatches if m.actual_tool_call]
+        called = list(
+            dict.fromkeys(
+                m.actual_tool_call.name for m in run.tool_call_matches if m.actual_tool_call
+            )
+        )
         case.failure = (
             f"{run.classification}: expected {describe_expected(tc)}, "
             f"called {', '.join(called) or 'no tool'}"

@@ -171,3 +171,31 @@ class TestTestReport:
         )
 
         assert result.exit_code == EXIT_INVALID_ARGUMENTS
+
+
+def test_failure_names_every_tool_called():
+    """An FN with one of two expected calls matched still names the matched call."""
+    from mcp_tef_models.schemas import TestCaseResponse, TestRunResponse
+
+    from mcp_tef_cli.commands.test_report import junit_case
+
+    tc = TestCaseResponse.model_validate(mock_case("c1", "two calls", "get_weather"))
+    weather = {"mcp_server_url": MCP, "tool_name": "get_weather"}
+    run = TestRunResponse.model_validate(
+        mock_run(
+            "c1",
+            "FN",
+            tool_call_matches=[
+                {
+                    "match_type": "TP",
+                    "expected_tool_call": weather,
+                    "actual_tool_call": {"name": "get_weather", "mcp_server_url": MCP},
+                },
+                {"match_type": "FN", "expected_tool_call": weather},
+            ],
+        )
+    )
+
+    case = junit_case(tc, run, "mcp-tef")
+
+    assert case.failure == "FN: expected get_weather, called get_weather"
