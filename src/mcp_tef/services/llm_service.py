@@ -383,7 +383,8 @@ class LLMService:
 
             return Agent(
                 model=model,
-                output_type=output_type,
+                # Agent rejects None; its own default is str.
+                output_type=str if output_type is None else output_type,
                 system_prompt=system_prompt,
                 tools=tools,
                 capabilities=[NativeTool(t) for t in builtin_tools],

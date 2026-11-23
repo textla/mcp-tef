@@ -536,7 +536,7 @@ class TestBedrockProvider:
             settings=Settings(bedrock_region="us-east-1"),
         )
 
-        agent = service.make_agent("grade", output_type=str)
+        agent = service.make_agent("grade")
 
         assert isinstance(agent.model, BedrockConverseModel)
         assert agent.model.model_name == "us.anthropic.claude-sonnet-5-5"
