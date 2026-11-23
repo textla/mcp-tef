@@ -78,8 +78,9 @@ mtef tool-quality \
 # Devin PAT from DEVIN_API_KEY (or --api-key) and the org from DEVIN_ORG_ID.
 # --model-name is the session's devin_mode, or "default". A session takes
 # minutes, so raise --timeout above the server's DEVIN_SESSION_TIMEOUT (1200s).
-# The server also reads DEVIN_API_URL, DEVIN_REQUEST_TIMEOUT (30s) and
-# DEVIN_POLL_INTERVAL (10s).
+# The server also reads DEVIN_MAX_ACU_LIMIT (5), DEVIN_API_URL,
+# DEVIN_REQUEST_TIMEOUT (30s) and DEVIN_POLL_INTERVAL (10s). The session gets
+# no repos, secrets, knowledge or memory, and is terminated once graded.
 mtef tool-quality \
   --server-urls http://localhost:3000/sse \
   --model-provider devin \
@@ -425,6 +426,8 @@ At least one LLM provider API key is required:
 - `OPENROUTER_API_KEY` - OpenRouter API key (recommended)
 - `ANTHROPIC_API_KEY` - Anthropic API key
 - `OPENAI_API_KEY` - OpenAI API key
+- `DEVIN_API_KEY` and `DEVIN_ORG_ID` - Devin PAT and organization, for
+  `tool-quality --model-provider devin`
 
 ### Optional Variables
 
