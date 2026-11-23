@@ -7,7 +7,7 @@ from mcp_tef_models.schemas import MCPServerConfig
 from pydantic_ai import ToolCallPart, ToolReturnPart
 
 from mcp_tef.api.errors import LLMProviderError
-from mcp_tef.models.llm_models import LLMResponse, LLMToolCall
+from mcp_tef.models.llm_models import ConfidenceLevel, LLMResponse, LLMToolCall
 from mcp_tef.services.llm_service import LLMService
 
 
@@ -432,3 +432,47 @@ class TestSelectToolResponseStructure:
         # Assert - raw_response should be a non-empty string
         assert isinstance(response.raw_response, str)
         assert len(response.raw_response) > 0
+
+
+class TestSelectToolFinalAnswer:
+    """Test the agent's final answer, structured or plain text."""
+
+    @staticmethod
+    async def _select(final_part) -> LLMResponse:
+        from pydantic_ai import Agent
+        from pydantic_ai.messages import ModelResponse
+        from pydantic_ai.models.function import FunctionModel
+
+        def respond(messages, info):
+            return ModelResponse(parts=[final_part(info)])
+
+        def make_agent(self, system_prompt, output_type=None, **_):
+            return Agent(
+                FunctionModel(respond), output_type=output_type, system_prompt=system_prompt
+            )
+
+        service = LLMService(provider="ollama", model="m", api_key=None, base_url="http://x/v1")
+        with patch.object(LLMService, "make_agent", make_agent):
+            await service.connect_to_mcp_servers([], "")
+        return await service.select_tool("What is SMS?")
+
+    @pytest.mark.asyncio
+    async def test_plain_text_answer_has_no_confidence(self):
+        """A model that answers in plain text instead of the structured output is not an error."""
+        from pydantic_ai.messages import TextPart
+
+        response = await self._select(lambda _: TextPart("SMS is a text message."))
+
+        assert response.tool_calls == []
+        assert response.confidence_level is None
+
+    @pytest.mark.asyncio
+    async def test_structured_answer_has_confidence(self):
+        """The structured output still sets the confidence."""
+        from pydantic_ai.messages import ToolCallPart as Call
+
+        response = await self._select(
+            lambda info: Call(info.output_tools[0].name, {"confidence": "high"})
+        )
+
+        assert response.confidence_level == ConfidenceLevel.HIGH

@@ -24,6 +24,7 @@ from pydantic_ai.mcp import MCPServerSSE, MCPServerStreamableHTTP
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.output import OutputSpec
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
@@ -109,7 +110,11 @@ class LLMService:
 
             # Initialize agent with all MCP server toolsets and structured output for confidence
             self.agent = self.make_agent(
-                system_prompt=system_prompt, toolsets=toolsets, output_type=ToolSelectionResult
+                system_prompt=system_prompt,
+                toolsets=toolsets,
+                # A plain-text final answer still has its tool calls; only the
+                # confidence is missing. Small local models often answer that way.
+                output_type=[ToolSelectionResult, str],
             )
 
             logger.info(f"Initialized agent with {len(toolsets)} MCP server toolsets")
@@ -280,7 +285,7 @@ class LLMService:
         tools: Sequence[Tool] = (),
         builtin_tools: Sequence[AbstractBuiltinTool] = (),
         toolsets: Sequence[AbstractToolset] | None = None,
-        output_type: type[BaseModel] | None = None,
+        output_type: OutputSpec[Any] | None = None,
     ) -> Agent:
         """
         Initializes a pydantic_ai Agent with the specified system prompt and tools.
