@@ -73,6 +73,16 @@ mtef tool-quality \
   --server-urls http://localhost:3000/sse \
   --model-provider openrouter \
   --model-name anthropic/claude-sonnet-4-5-20250929
+
+# Grade with one Devin session instead of a model API. The server reads the
+# Devin PAT from DEVIN_API_KEY (or --api-key) and the org from DEVIN_ORG_ID.
+# --model-name is the session's devin_mode, or "default". A session takes
+# minutes, so raise --timeout.
+mtef tool-quality \
+  --server-urls http://localhost:3000/sse \
+  --model-provider devin \
+  --model-name default \
+  --timeout 1500
 ```
 
 ### Manage Test Cases
