@@ -74,6 +74,15 @@ mtef tool-quality \
   --model-provider openrouter \
   --model-name anthropic/claude-sonnet-4-5-20250929
 
+# Grade with Claude on AWS Bedrock. The server uses boto3's default AWS
+# credentials (environment, AWS_PROFILE/SSO or an assumed role) and
+# BEDROCK_REGION, else AWS_REGION. --model-name is a model or inference
+# profile id.
+mtef tool-quality \
+  --server-urls http://localhost:3000/sse \
+  --model-provider bedrock \
+  --model-name us.anthropic.claude-sonnet-5-5
+
 # Grade with one Devin session instead of a model API. The server reads the
 # Devin PAT from DEVIN_API_KEY (or --api-key) and the org from DEVIN_ORG_ID.
 # --model-name is the session's devin_mode, or "default". A session takes
@@ -428,6 +437,8 @@ At least one LLM provider API key is required:
 - `OPENAI_API_KEY` - OpenAI API key
 - `DEVIN_API_KEY` and `DEVIN_ORG_ID` - Devin PAT and organization, for
   `tool-quality --model-provider devin`
+- AWS credentials (and `BEDROCK_REGION` or `AWS_REGION`), for
+  `--model-provider bedrock`
 
 ### Optional Variables
 

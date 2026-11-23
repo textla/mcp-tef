@@ -215,7 +215,7 @@ async def evaluate_tool_quality_async(
 @click.option(
     "--model-provider",
     required=True,
-    help="LLM provider (e.g., anthropic, openai, openrouter, devin)",
+    help="LLM provider (e.g., anthropic, openai, openrouter, bedrock, devin)",
 )
 @click.option(
     "--model-name",

@@ -517,3 +517,27 @@ class TestSelectToolFinalAnswer:
         )
 
         assert [(c.name, c.response) for c in response.tool_calls] == [("get_balance", None)]
+
+
+class TestBedrockProvider:
+    """The bedrock provider builds a Bedrock Converse model from AWS credentials."""
+
+    def test_make_agent_uses_bedrock_converse(self, monkeypatch):
+        from pydantic_ai.models.bedrock import BedrockConverseModel
+
+        from mcp_tef.config.settings import Settings
+
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+        service = LLMService(
+            provider="bedrock",
+            model="us.anthropic.claude-sonnet-5-5",
+            api_key=None,
+            settings=Settings(bedrock_region="us-east-1"),
+        )
+
+        agent = service.make_agent("grade", output_type=str)
+
+        assert isinstance(agent.model, BedrockConverseModel)
+        assert agent.model.model_name == "us.anthropic.claude-sonnet-5-5"
+        assert agent.model.client.meta.region_name == "us-east-1"
