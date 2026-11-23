@@ -22,6 +22,10 @@ PROVIDER = "devin"
 
 # Session statuses after which the session produces no more output.
 _FINAL_STATUSES = {"exit", "error", "suspended"}
+# A running session with one of these details is done with its task.
+_FINAL_DETAILS = {"finished", "waiting_for_user"}
+# Statuses of a session that can no longer be terminated.
+_EXITED_STATUSES = {"exit", "error"}
 
 
 def structured_output_schema[T: BaseModel](output_type: type[T]) -> dict[str, Any]:
@@ -81,6 +85,9 @@ class DevinSessionService:
             "structured_output_schema": structured_output_schema(output_type),
             "structured_output_required": True,
             "repos": [],
+            "secret_ids": [],
+            "knowledge_ids": [],
+            "max_acu_limit": self._settings.devin_max_acu_limit,
             "resumable": False,
             "memory_enabled": False,
             "tags": ["mcp-tef"],
@@ -97,29 +104,55 @@ class DevinSessionService:
             created = self._json(await client.post(sessions, json=body))
             session_id = created["session_id"]
             logger.info("Created Devin session", session_id=session_id, url=created.get("url"))
-            deadline = time.monotonic() + self._settings.devin_session_timeout
-            while True:
-                session = self._json(await client.get(f"{sessions}/{session_id}"))
-                output = session.get("structured_output")
-                if output is not None:
-                    try:
-                        return output_type.model_validate(output)
-                    except ValidationError:
-                        logger.debug("Ignoring incomplete structured output", session_id=session_id)
-                status = session.get("status")
-                if status in _FINAL_STATUSES:
-                    raise LLMProviderError(
-                        PROVIDER,
-                        f"session {session_id} ended ({status}) without valid structured output",
-                    )
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise LLMProviderError(
-                        PROVIDER,
-                        f"session {session_id} returned no structured output within "
-                        f"{self._settings.devin_session_timeout:g}s",
-                    )
-                await asyncio.sleep(min(self._settings.devin_poll_interval, remaining))
+            status = None
+            try:
+                deadline = time.monotonic() + self._settings.devin_session_timeout
+                while True:
+                    session = self._json(await client.get(f"{sessions}/{session_id}"))
+                    status = session.get("status")
+                    output = session.get("structured_output")
+                    if output is not None:
+                        try:
+                            return output_type.model_validate(output)
+                        except ValidationError:
+                            logger.debug(
+                                "Ignoring incomplete structured output", session_id=session_id
+                            )
+                    detail = session.get("status_detail")
+                    if status in _FINAL_STATUSES or (
+                        status == "running" and detail in _FINAL_DETAILS
+                    ):
+                        raise LLMProviderError(
+                            PROVIDER,
+                            f"session {session_id} ended ({status}"
+                            f"{f', {detail}' if detail else ''}) without valid structured output",
+                        )
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise LLMProviderError(
+                            PROVIDER,
+                            f"session {session_id} returned no structured output within "
+                            f"{self._settings.devin_session_timeout:g}s",
+                        )
+                    await asyncio.sleep(min(self._settings.devin_poll_interval, remaining))
+            finally:
+                if status not in _EXITED_STATUSES:
+                    await self._terminate(client, f"{sessions}/{session_id}")
+
+    @staticmethod
+    async def _terminate(client: httpx.AsyncClient, session_path: str) -> None:
+        """Stop the session so it spends no more ACUs; a failure here is only logged."""
+        try:
+            response = await client.delete(session_path)
+        except httpx.HTTPError as e:
+            logger.warning("Could not terminate Devin session", session=session_path, error=str(e))
+            return
+        if response.is_error:
+            logger.warning(
+                "Could not terminate Devin session",
+                session=session_path,
+                status_code=response.status_code,
+            )
 
     @staticmethod
     def _json(response: httpx.Response) -> dict[str, Any]:
