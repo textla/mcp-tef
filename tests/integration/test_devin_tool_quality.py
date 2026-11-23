@@ -180,18 +180,19 @@ async def test_missing_tool_is_an_error(quality):
 
 
 @pytest.mark.asyncio
-async def test_refused_pat_is_an_error(quality):
+@pytest.mark.parametrize("status_code", [401, 403])
+async def test_refused_pat_is_an_error(quality, status_code):
     requests: list[httpx.Request] = []
 
     def refuse(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        return httpx.Response(403, json={"detail": "org not accessible"})
+        return httpx.Response(status_code, json={"detail": "org not accessible"})
 
     data = await quality(refuse)
 
     assert data["results"] == []
     assert len(data["errors"]) == 1
-    assert "refused the PAT or org (403)" in data["errors"][0]
+    assert f"refused the PAT or org ({status_code})" in data["errors"][0]
     assert "org not accessible" in data["errors"][0]
     assert [r.method for r in requests] == ["POST"]
 
