@@ -370,12 +370,12 @@ class LLMService:
                     if self.api_key
                     else BedrockProvider(region_name=region)
                 )
-                # Structured output is a tool call. Forcing it (toolChoice any)
-                # is rejected by models that accept only auto or none, such as
-                # Claude Sonnet 5.5, so let the model pick the output tool.
+                # Tool-mode structured output forces the output tool with
+                # toolChoice any, which models such as Claude Sonnet 5.5 reject
+                # (they accept auto or none). Ask for the JSON in the prompt.
                 profile = replace(
                     BedrockModelProfile.from_profile(provider.model_profile(self.model)),
-                    bedrock_supports_tool_choice=False,
+                    default_structured_output_mode="prompted",
                 )
                 model = BedrockConverseModel(self.model, provider=provider, profile=profile)
             elif self.provider.lower() == "ollama":

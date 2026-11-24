@@ -542,30 +542,45 @@ class TestBedrockProvider:
         assert agent.model.model_name == "us.anthropic.claude-sonnet-5-5"
         assert agent.model.client.meta.region_name == "us-east-1"
 
-    def test_make_agent_does_not_force_tool_choice(self, monkeypatch):
+    async def test_tool_quality_grade_needs_no_tool_choice(self, monkeypatch):
         """Sonnet 5.5 on Bedrock accepts toolChoice auto or none, not any."""
-        from pydantic_ai.models import ModelRequestParameters
-        from pydantic_ai.tools import ToolDefinition
+        import json
+        from unittest.mock import MagicMock
+
+        from mcp_tef_models.schemas import ToolDefinition
 
         from mcp_tef.config.settings import Settings
+        from mcp_tef.services.tool_quality_service import ToolQualityService
 
         monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
         monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
-        service = LLMService(
+        llm_service = LLMService(
             provider="bedrock",
             model="us.anthropic.claude-sonnet-5-5",
             api_key=None,
             settings=Settings(bedrock_region="us-east-1"),
         )
-        model = service.make_agent("grade", output_type=int).model
+        service = ToolQualityService(mcp_loader_service=MagicMock(), llm_service=llm_service)
+        dimension = {"score": 8, "explanation": "ok"}
+        grade = {"clarity": dimension, "completeness": dimension, "conciseness": dimension}
+        requests = []
 
-        tool_config = model._map_tool_config(
-            ModelRequestParameters(
-                output_tools=[ToolDefinition(name="final_result")], allow_text_output=False
-            ),
-            None,
+        def converse(**params):
+            requests.append(params)
+            return {
+                "output": {
+                    "message": {"role": "assistant", "content": [{"text": json.dumps(grade)}]}
+                },
+                "stopReason": "end_turn",
+                "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+            }
+
+        assert service._agent is not None
+        monkeypatch.setattr(service._agent.model.client, "converse", converse)
+
+        result = await service.evaluate_tool(
+            ToolDefinition(name="get_time", description="Get the time")
         )
 
-        assert tool_config is not None
-        assert "toolChoice" not in tool_config
-        assert model.profile.bedrock_supports_prompt_caching
+        assert result.evaluation_result.clarity.score == 8
+        assert "toolChoice" not in requests[0].get("toolConfig", {})
