@@ -541,3 +541,31 @@ class TestBedrockProvider:
         assert isinstance(agent.model, BedrockConverseModel)
         assert agent.model.model_name == "us.anthropic.claude-sonnet-5-5"
         assert agent.model.client.meta.region_name == "us-east-1"
+
+    def test_make_agent_does_not_force_tool_choice(self, monkeypatch):
+        """Sonnet 5.5 on Bedrock accepts toolChoice auto or none, not any."""
+        from pydantic_ai.models import ModelRequestParameters
+        from pydantic_ai.tools import ToolDefinition
+
+        from mcp_tef.config.settings import Settings
+
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+        service = LLMService(
+            provider="bedrock",
+            model="us.anthropic.claude-sonnet-5-5",
+            api_key=None,
+            settings=Settings(bedrock_region="us-east-1"),
+        )
+        model = service.make_agent("grade", output_type=int).model
+
+        tool_config = model._map_tool_config(
+            ModelRequestParameters(
+                output_tools=[ToolDefinition(name="final_result")], allow_text_output=False
+            ),
+            None,
+        )
+
+        assert tool_config is not None
+        assert "toolChoice" not in tool_config
+        assert model.profile.bedrock_supports_prompt_caching
