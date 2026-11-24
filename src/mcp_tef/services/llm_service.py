@@ -2,6 +2,7 @@
 
 import os
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Any
 
 import structlog
@@ -27,7 +28,7 @@ from pydantic_ai.models.bedrock import BedrockConverseModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.output import OutputSpec
 from pydantic_ai.providers.anthropic import AnthropicProvider
-from pydantic_ai.providers.bedrock import BedrockProvider
+from pydantic_ai.providers.bedrock import BedrockModelProfile, BedrockProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic_ai.tools import Tool
@@ -369,7 +370,14 @@ class LLMService:
                     if self.api_key
                     else BedrockProvider(region_name=region)
                 )
-                model = BedrockConverseModel(self.model, provider=provider)
+                # Structured output is a tool call. Forcing it (toolChoice any)
+                # is rejected by models that accept only auto or none, such as
+                # Claude Sonnet 5.5, so let the model pick the output tool.
+                profile = replace(
+                    BedrockModelProfile.from_profile(provider.model_profile(self.model)),
+                    bedrock_supports_tool_choice=False,
+                )
+                model = BedrockConverseModel(self.model, provider=provider, profile=profile)
             elif self.provider.lower() == "ollama":
                 # Ollama uses OpenAIProvider with custom base_url
                 # Ollama doesn't require an API key, but OpenAIProvider needs one (use empty string)
